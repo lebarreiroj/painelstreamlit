@@ -194,7 +194,7 @@ st.markdown("##")
 # Opções de modelos de ML a serem selecionados na barra lateral
 # Dicionário com as opções de modelos de ML e campos de predição de cada um dos modelos
 ml_options = {
-    #'BRR':['resultados_ML_brr_0.csv','y_pred_BayesianRidge','brr'],
+    'BRR':['resultados_ML_brr_0.csv','y_pred_brr','brr'],
     'KNNR':['resultados_ML_knnr_0.csv','y_pred_knnr','knnr'],
     'Linear Regression':['resultados_ML_lr_0.csv','y_pred_LinearRegression','lr'],
     'Random Forest Regressor':['resultados_ML_rfr_0.csv','y_pred_RandomForestRegressor','rfr'],
