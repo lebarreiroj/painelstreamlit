@@ -4,6 +4,7 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')  # Use o backend não interativo Agg
 import seaborn as sns
 import numpy as np
 # Teste de normalidade de Shapiro-Wilk
