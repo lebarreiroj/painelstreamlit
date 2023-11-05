@@ -9,7 +9,7 @@ import numpy as np
 # Teste de normalidade de Shapiro-Wilk
 from scipy.stats import shapiro
 
-from pkgs.utilidades import BootstrapConfidenceInterval
+#from pkgs.utilidades import BootstrapConfidenceInterval
 
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
@@ -63,7 +63,105 @@ class DataLoaderEstacoes(DataLoader):
     # get filtered data
     def get_filtered_data(self, station_code):
         return self.data[self.data["Unnamed: 0"] == station_code]
+class BootstrapCI():
+    def __init__(self) -> None:
+        self.lower_bound = None
+        self.upper_bound = None
+        self.statistic = None
+        self.ci = None
+
+    def set_ci(self, ci):
+        self.ci = ci
+
+    def get_ci(self):
+        return self.ci
     
+    def set_n_bootstrap(self, n_bootstrap):
+        self.n_bootstrap = n_bootstrap
+
+    def get_n_bootstrap(self):
+        return self.n_bootstrap
+    
+    def set_statistic(self, statistic):
+        self.statistic = statistic
+    
+    def get_statistic(self):
+        return self.statistic
+    
+    def set_lower_bound(self, lower_bound):
+        self.lower_bound = lower_bound
+
+    def get_lower_bound(self):
+        return self.lower_bound
+    
+    def set_upper_bound(self, upper_bound):
+        self.upper_bound = upper_bound
+
+    def get_upper_bound(self):
+        return self.upper_bound
+    
+    def get_bootstrap_sample(self, data):
+        return np.random.choice(data, size=len(data))
+    
+    def get_statistic_from_sample(self, sample):
+        raise NotImplementedError("Subclass must implement abstract method")
+    
+    def get_bootstrap_replicates(self, data, n_bootstrap):
+        bootstrap_replicates = []
+        for _ in range(n_bootstrap):
+            bootstrap_sample = self.get_bootstrap_sample(data)
+            bootstrap_replicates.append(self.get_statistic_from_sample(bootstrap_sample))
+        return bootstrap_replicates
+    
+    def get_ci_from_bootstrap_replicates(self, bootstrap_replicates, alpha):
+        raise NotImplementedError("Subclass must implement abstract method")
+    
+    def get_ci(self, data, n_bootstrap, alpha):
+        bootstrap_replicates = self.get_bootstrap_replicates(data, n_bootstrap)
+        self.ci = self.get_ci_from_bootstrap_replicates(bootstrap_replicates, alpha)
+        return self.ci
+    
+class BootstrapConfidenceInterval(BootstrapCI):
+    def __init__(self, data) -> None:
+        super().__init__()
+        self.data = data
+        self.n_bootstrap = None
+        self.alpha = None
+        self.statistic = None
+        self.ci = None
+    
+    def set_statistic(self, statistic):
+        self.statistic = statistic
+
+    def set_n_bootstrap(self, n_bootstrap):
+        self.n_bootstrap = n_bootstrap
+
+    def get_alpha(self):
+        return self.alpha
+
+    def set_alpha(self, alpha):
+        self.alpha = alpha
+
+    def get_statistic_from_sample(self, sample):
+        if self.statistic == 'mean':
+            return np.mean(sample)
+        elif self.statistic == 'median':
+            return np.median(sample)
+        elif self.statistic == 'variance':  
+            return np.var(sample)
+        else:
+            raise ValueError(f"Statistic {self.statistic} is not implemented")
+    
+    def get_ci_from_bootstrap_replicates(self, bootstrap_replicates, alpha):
+        if self.statistic == 'mean':
+            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+        elif self.statistic == 'median':
+            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+        elif self.statistic == 'variance':
+            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
+        else:
+            raise ValueError(f"Statistic {self.statistic} is not implemented")
+
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Dados de Estações
 file_estacoes = "estacoes_data_cluster_0.csv"
