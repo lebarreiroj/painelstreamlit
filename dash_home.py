@@ -3,8 +3,9 @@
 #from prometheus_client import Metric, MetricsHandler
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+import matplotlib
 matplotlib.use('Agg')  # Use o backend não interativo Agg
+import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 # Teste de normalidade de Shapiro-Wilk
