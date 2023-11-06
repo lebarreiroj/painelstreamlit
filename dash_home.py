@@ -1,4 +1,4 @@
-st.set_option('deprecation.showPyplotGlobalUse', False)
+# st.set_option('deprecation.showPyplotGlobalUse', False)
 # 1. Importar as bibliotecas necessárias
 #from prometheus_client import Metric, MetricsHandler
 import streamlit as st
