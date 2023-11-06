@@ -243,7 +243,7 @@ st.markdown("---")
 
 with st.expander(f"⏰ Tabela com os dados da estação - Código da Estação : {selected_station}"):
         showData=st.multiselect('Filter: ',filtered_data_estacoes.columns,default=["codigo","cobacia","cocursodag","q95"])
-        st.dataframe(filtered_data_estacoes[showData],use_container_width=True)
+        st.dataframe(filtered_data_estacoes[showData],use_container_width=False)
 
 st.markdown("---")
 
@@ -394,7 +394,7 @@ st.header(f"Intervalos de Confiança - {mnemonico}")
 with st.expander(f"⏰ Estatísticas das Estações para o Modelo de ML selecionado - {mnemonico}"):
     columns_list = data_intervalos.data.columns.tolist()
     showData=st.multiselect('Filter: ',data_intervalos.data.columns,default=columns_list)
-    st.dataframe(data_intervalos.data[showData],use_container_width=True, height=200)
+    st.dataframe(data_intervalos.data[showData],use_container_width=False, height=200)
 
 # criar botão para fazer download do arquivo de intervalos de confiança
 @st.cache_data
