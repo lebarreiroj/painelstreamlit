@@ -1,433 +1,352 @@
-# st.set_option('deprecation.showPyplotGlobalUse', False)
-# 1. Importar as bibliotecas necessárias
-#from prometheus_client import Metric, MetricsHandler
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ÁREA DE IMPORTAÇÃO DE BIBLIOTECAS
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# stremlit e companhia
 import streamlit as st
+#import streamlit_option_menu as som
+#from streamlit_option_menu import option_menu
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Manipulação de dados e arquivos
 import pandas as pd
-import matplotlib
-matplotlib.use('Agg')  # Use o backend não interativo Agg
+import glob
+import os
+
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Visualização de dados
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Estatística
 import numpy as np
-# Teste de normalidade de Shapiro-Wilk
-from scipy.stats import shapiro
+import scipy.stats as stats
 
-#from pkgs.utilidades import BootstrapConfidenceInterval
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Resultados das performances dos modelos para avaliar os que apresentam melhor
+# desempenho
+# Os resultados estão no arquivo resultados_performance_modelos_{cluster}.csv
+        # Calcular os resultados da performance
 
+
+def CalcularPerformanceModelo(cluster, modelo):
+
+    # carregar o arquivo de performance dos modelos
+    # carregar o arquivo de performance dos modelos
+
+    # filtrar o modelo
+    df = df[df['modelo'] == modelo]
+    resume.qtd_estacoes = len(df)
+    resume.qtd_r2_score_abaixo_zero = len(df[df['r2_score'] < 0])
+    resume.qtd_r2_score_abaixo_50 = len(df[(df['r2_score'] >= 0) & (df['r2_score'] < 0.5)])
+    resume.qtd_r2_score_abaixo_60 = len(df[(df['r2_score'] >= 0.5) & (df['r2_score'] < 0.6)])
+    resume.qtd_r2_score_abaixo_70 = len(df[(df['r2_score'] >= 0.6) & (df['r2_score'] < 0.7)])
+    resume.qtd_r2_score_abaixo_80 = len(df[(df['r2_score'] >= 0.7) & (df['r2_score'] < 0.8)])
+    resume.qtd_r2_score_acima_80 = len(df[df['r2_score'] >= 0.8])    
+    return resume
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Cálculo de intervalo de confiança com bootstrap
+import numpy as np
+
+def bootstrap_ci(data, n_bootstraps=1000, alpha=0.05):
+    """
+    Calculate confidence intervals for the mean and median of a dataset using bootstrap.
+    
+    Parameters:
+    data (array-like): The data to calculate the confidence intervals for.
+    n_bootstraps (int): The number of bootstrap samples to generate.
+    alpha (float): The significance level of the confidence interval.
+    
+    Returns:
+    A tuple containing the confidence intervals for the mean and median.
+    """
+    # Generate bootstrap samples
+    bootstrap_samples = np.random.choice(data, size=(n_bootstraps, len(data)), replace=True)
+    
+    # Calculate the mean and median of each bootstrap sample
+    bootstrap_means = np.mean(bootstrap_samples, axis=1)
+    bootstrap_medians = np.median(bootstrap_samples, axis=1)
+    
+    # Calculate the confidence intervals for the mean and median
+    mean_ci = np.percentile(bootstrap_means, q=[100*alpha/2, 100*(1-alpha/2)])
+    median_ci = np.percentile(bootstrap_medians, q=[100*alpha/2, 100*(1-alpha/2)])
+    
+    return mean_ci, median_ci
+
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Classe para tratar os dados das tabelas resultados_ML*.csv
+# 
+class ResumeML:
+    def __init__(self, df, codigo):
+        self.codigo = None
+        self.cobacia = None
+        self.cocursodag = None
+        self.q95 = None
+        self.media = None
+        self.media_lower_bound = None
+        self.media_upper_bound = None
+        self.mediana = None
+        self.mediana_lower_bound = None
+        self.mediana_upper_bound = None
+        self.dist_lower_bound = None
+        self.dist_upper_bound = None
+        self.dentro_dist = None
+        self.error_media = None
+        self.error_mediana = None
+        self.moda = None
+    
+    # Calcular os indicadores estatísticos
+    def calc_indicadores(self, df, y_pred, codigo):
+        # calcular os indicadores estatísticos
+        # loop para montar a página de análise de dados agrupado por estação
+        self.codigo = codigo
+        self.cobacia = df['cobacia'].unique()[0]
+        self.cocursodag = df['cocursodag'].unique()[0]
+        self.q95 = df['q95'].unique()[0]
+        self.media = df[y_pred].mean()
+        self.mediana = df[y_pred].median()
+        # calcular os limites de confiança 0,025 e 0,975
+        mean_ci, median_ci = bootstrap_ci(df[y_pred])
+        self.media_lower_bound = mean_ci[0]
+        self.media_upper_bound = mean_ci[1]
+        self.mediana_lower_bound = median_ci[0]
+        self.mediana_upper_bound = median_ci[1] 
+        # calcular os limites de confiança 0,025 e 0,975 da distribuição
+        self.dist_lower_bound = np.quantile(df[y_pred], 0.025)
+        self.dist_upper_bound = np.quantile(df[y_pred], 0.975)
+        # verificar se a q95 está dentro do intervalo de confiança da distribuição
+        self.dentro_dist = (self.dist_lower_bound <= self.q95) & (self.q95 <= self.dist_upper_bound)
+        self.error_media = (self.media - self.q95)/self.q95
+        self.error_mediana = (self.mediana - self.q95)/self.q95
+        self.moda = df[y_pred].mode()[0]
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# definição de funções
+def show_ml(my_ml, my_ml2, cluster, tipo_painal = 'Agregado por modelo'):
+    df = pd.read_csv('resultados_ML_'+my_ml+'_'+cluster+'.csv')
+
+    # Alterar o tipo das colunas para string
+    df['codigo'] = df['codigo'].astype(str)
+    df['cobacia'] = df['cobacia'].astype(str)
+    df['cocursodag'] = df['cocursodag'].astype(str)
+
+    
+    resume_list = []
+    for codigo in df['codigo'].unique():
+        # montar a página de análise de dados
+        resume = ResumeML(df[df['codigo'] == codigo], codigo)
+        resume.calc_indicadores(df[df['codigo'] == codigo], my_ml2, codigo)
+        resume_list.append(resume.__dict__)
+    # criar dataframe a partir da lista de dicionários
+    resultado_df = pd.DataFrame.from_dict(resume_list)
+
+    # colunas com indicadores estatísticos
+    col1, col2, col3 = st.columns(3)
+    col1.metric('Qtd Estações', int(resultado_df['codigo'].count()))
+    col2.metric('Qtd Dentro Dist', int(resultado_df['dentro_dist'].sum()))
+    col3.metric('% Dentro Dist', float(resultado_df['dentro_dist'].sum()/resultado_df['codigo'].count()).__round__(4) * 100)
+
+    # verificar o tipo de painel
+    if tipo_painal == 'Agregado por modelo':
+        with st.expander(f"⏰ Tabela com os dados do modelo {my_ml}"):
+            showData=st.multiselect('Filter: ',resultado_df.columns.tolist(),default=resultado_df.columns.tolist(), key=my_ml)
+            st.dataframe(resultado_df[showData],use_container_width=True, height=200)
+    elif tipo_painal == 'Resultado Performance Modelo':
+        with st.expander(f"Performance do modelo {my_ml}"):
+            df = pd.read_csv('resultado_performance_modelos_'+cluster+'.csv')
+            # filtrar o modelo
+            df = df[df['modelo'] == my_ml]
+            # criar 3 colunas
+            col1, col2, col3 = st.columns(3)
+            # Quantidade de modelos com r2_score < 0 do conteúdo do dataframe
+            col1.metric('r2_score < 0', df[df['r2_score'] < 0].count()[0])
+            # Quantidade de modelos com r2_score >= 0 e < 0.5
+            col2.metric('0 <= r2_score < 0.5', df[(df['r2_score'] >= 0) & (df['r2_score'] < 0.5)].count()[0])
+            # Quantidade de modelos com r2_score >= 0.5 e < 0.6
+            col3.metric('0.5 <= r2_score < 0.6', df[(df['r2_score'] >= 0.5) & (df['r2_score'] < 0.6)].count()[0])
+            # criar mais 3 colunas
+            col4, col5, col6 = st.columns(3)
+            # Quantidade de modelos com r2_score >= 0.6 e < 0.7
+            col4.metric('0.6 <= r2_score < 0.7', df[(df['r2_score'] >= 0.6) & (df['r2_score'] < 0.7)].count()[0])
+            # Quantidade de modelos com r2_score >= 0.7 e < 0.8
+            col5.metric('0.7 <= r2_score < 0.8', df[(df['r2_score'] >= 0.7) & (df['r2_score'] < 0.8)].count()[0])
+            # Quantidade de modelos com r2_score >= 0.8
+            col6.metric('0.8 <= r2_score', df[df['r2_score'] >= 0.8].count()[0])
+
+            # carregar planilha com os resultados de performance dos modelos
+            showData=st.multiselect('Filter: ',df.columns.tolist(),default=df.columns.tolist(), key=my_ml)
+            st.dataframe(df[showData],use_container_width=True, height=200)
+
+    elif tipo_painal == 'Agregado por estação':
+        with st.expander(f"⏰ Gráfico das estações do Modelo {my_ml}"):
+            # lista de estaçoes para seleção e montagem de gráficos
+            estacoes = resultado_df['codigo'].unique()
+            estacoes.sort()
+            estacao = st.selectbox('Selecione a estação', estacoes, key=my_ml + 'estacao')
+            # montar histograma dos dados y_pred em duas colunas
+
+            # q95
+            st.metric('Q95', float(resultado_df[resultado_df['codigo'] == estacao]['q95'].values[0]).__round__(2))
+            # quantidade de registros da estaçao
+            st.metric('Qtd Registros', int(df[df['codigo'] == estacao][my_ml2].count()))
+            # moda
+            st.metric('Moda', float(resultado_df[resultado_df['codigo'] == estacao]['moda'].values[0]).__round__(2))
+
+            kpi1, kpi2 = st.columns(2)
+            # média no kpi1
+            kpi1.metric('Média', float(resultado_df[resultado_df['codigo'] == estacao]['media'].values[0]).__round__(2))
+            # lower bound no kpi1
+            kpi1.metric('Lower Bound', float(resultado_df[resultado_df['codigo'] == estacao]['media_lower_bound'].values[0]).__round__(2))
+            # upper bound no kpi1
+            kpi1.metric('Upper Bound', float(resultado_df[resultado_df['codigo'] == estacao]['media_upper_bound'].values[0]).__round__(2))
+
+            # mediana no kpi2
+            kpi2.metric('Mediana', float(resultado_df[resultado_df['codigo'] == estacao]['mediana'].values[0]).__round__(2))
+            # lower bound no kpi2
+            kpi2.metric('Lower Bound', float(resultado_df[resultado_df['codigo'] == estacao]['mediana_lower_bound'].values[0]).__round__(2))
+            # upper bound no kpi2
+            kpi2.metric('Upper Bound', float(resultado_df[resultado_df['codigo'] == estacao]['mediana_upper_bound'].values[0]).__round__(2))
+            
+
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # montar gráfico histograma com linha vertical na q95 vermelha e tracejada, linhas verdes nos limites de confiança
+                # quantile(0.025) e quantile(0.975), linha azul na média
+                fig, ax = plt.subplots()
+                sns.histplot(data=df[df['codigo'] == estacao], x=my_ml2, bins=100, ax=ax)
+                ax.axvline(x=resultado_df[resultado_df['codigo'] == estacao]['q95'].values[0], color='red', linestyle='--')
+                ax.axvline(x=resultado_df[resultado_df['codigo'] == estacao]['media'].values[0], color='blue', linestyle='--')
+                ax.axvline(x=resultado_df[resultado_df['codigo'] == estacao]['dist_lower_bound'].values[0], color='green', linestyle='--')
+                ax.axvline(x=resultado_df[resultado_df['codigo'] == estacao]['dist_upper_bound'].values[0], color='green', linestyle='--')
+                ax.set_title('Histograma dos dados preditos')
+                ax.set_xlabel('Vazão (m3/s)')
+                ax.set_ylabel('Frequência')
+                st.pyplot(fig)
+            with col2:
+                # montar gráfico q-q plot
+                fig, ax = plt.subplots()
+                stats.probplot(df[df['codigo'] == estacao][my_ml2], dist='norm', plot=ax)
+                ax.set_title('Q-Q plot dos dados preditos')
+                ax.set_xlabel('Quantis teóricos')
+                ax.set_ylabel('Quantis observados')
+                st.pyplot(fig)
+    elif tipo_painal == 'Correlação de Features':
+        st.write("Carregou correlação de features")
+        # carregar o arquivo em um dataframe
+        df = pd.read_csv('correlacao_features.csv')
+        # deletar colunas desnecessárias = codigo, cobacia, cocursodag
+        df.drop(['codigo', 'cobacia', 'cocursodag'], axis=1, inplace=True)
+        # deletar as linhas cujo valor da coluna Unmaded: 0 seja = codigo, cobacia, cocursodag
+        df.drop(df[df['Unnamed: 0'] == 'codigo'].index, inplace=True)
+        df.drop(df[df['Unnamed: 0'] == 'cobacia'].index, inplace=True)
+        df.drop(df[df['Unnamed: 0'] == 'cocursodag'].index, inplace=True)
+        df.rename(columns={"Unnamed: 0": "features"}, inplace=True)
+        df.set_index("features", inplace=True)
+        # deletar a coluna index
+        
+
+
+        st.write(df)
+        
+        # criar um gráfico de correlação
+        fig, ax = plt.subplots()
+        # determinar o tamanho da fonte
+        sns.set(font_scale=0.5)
+        sns.heatmap(df, annot=True, ax=ax, cmap='coolwarm')
+        st.pyplot(fig)
+
+    else:
+        st.write('Tipo de painel não implementado')
+
+   
+
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Dicionário com os modelos disponíveis e seus respectivos campos de predição no arquivo
+# de resultados
+
+
+model_y_pred = { "brr": 'y_pred_brr',
+                 "knnr": 'y_pred_knnr',
+                 "lr": 'y_pred_LinearRegression',
+                 "rfr": 'y_pred_RandomForestRegressor',
+                 "svr": 'y_pred_svr',
+                 "xgbr": 'y_pred_XGBRegressor',
+                 "xgbrf": 'y_pred_XGBRFRegressor'}
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# SideBar   
+st.sidebar.title('Menu')
+st.sidebar.subheader('Escolha as opções de análise')
 
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# seção de definição de funções e classes
-
-# classe para tratar os dados dos resultados do ML
-class DataLoader():
-    def __init__(self):
-        self.data = pd.DataFrame()
-        self.file = None
-    # set file
-    def set_file(self, file):
-        self.file = file
-    # get file
-    def get_file(self):
-        return self.file
-    # carregar dados de um arquivo CSV
-    def load_csv(self):
-        self.data = pd.read_csv(self.file)
-    # carregar dados de um arquivo Excel
-    def load_excel(self, excel_file):
-        self.data = pd.read_excel(self.file)
-    # data
-    #def get_data(self):
-    #    return self.data
-
-class DataLoaderResultadosML(DataLoader):
-    def __init__(self):
-        super().__init__()
-    # get station codes
-    def get_station_codes(self):
-        return sorted(self.data["index"].unique().tolist())
-    # get filtered data
-    def get_filtered_data(self, station_code):
-        return self.data[self.data["index"] == station_code]
-    # get all statistics
-    '''Estatísticas para da coluna y_pred para todas as estações'''
-    def get_all_statistics(self):
-        # 
-        return self.data.describe()
-    
-
-class DataLoaderEstacoes(DataLoader):
-    def __init__(self):
-        super().__init__()
-    # get station codes
-    def get_station_codes(self):
-        return sorted(self.data["Unnamed: 0"].unique().tolist())
-    # get filtered data
-    def get_filtered_data(self, station_code):
-        return self.data[self.data["Unnamed: 0"] == station_code]
-class BootstrapCI():
-    def __init__(self) -> None:
-        self.lower_bound = None
-        self.upper_bound = None
-        self.statistic = None
-        self.ci = None
-
-    def set_ci(self, ci):
-        self.ci = ci
-
-    def get_ci(self):
-        return self.ci
-    
-    def set_n_bootstrap(self, n_bootstrap):
-        self.n_bootstrap = n_bootstrap
-
-    def get_n_bootstrap(self):
-        return self.n_bootstrap
-    
-    def set_statistic(self, statistic):
-        self.statistic = statistic
-    
-    def get_statistic(self):
-        return self.statistic
-    
-    def set_lower_bound(self, lower_bound):
-        self.lower_bound = lower_bound
-
-    def get_lower_bound(self):
-        return self.lower_bound
-    
-    def set_upper_bound(self, upper_bound):
-        self.upper_bound = upper_bound
-
-    def get_upper_bound(self):
-        return self.upper_bound
-    
-    def get_bootstrap_sample(self, data):
-        return np.random.choice(data, size=len(data))
-    
-    def get_statistic_from_sample(self, sample):
-        raise NotImplementedError("Subclass must implement abstract method")
-    
-    def get_bootstrap_replicates(self, data, n_bootstrap):
-        bootstrap_replicates = []
-        for _ in range(n_bootstrap):
-            bootstrap_sample = self.get_bootstrap_sample(data)
-            bootstrap_replicates.append(self.get_statistic_from_sample(bootstrap_sample))
-        return bootstrap_replicates
-    
-    def get_ci_from_bootstrap_replicates(self, bootstrap_replicates, alpha):
-        raise NotImplementedError("Subclass must implement abstract method")
-    
-    def get_ci(self, data, n_bootstrap, alpha):
-        bootstrap_replicates = self.get_bootstrap_replicates(data, n_bootstrap)
-        self.ci = self.get_ci_from_bootstrap_replicates(bootstrap_replicates, alpha)
-        return self.ci
-    
-class BootstrapConfidenceInterval(BootstrapCI):
-    def __init__(self, data) -> None:
-        super().__init__()
-        self.data = data
-        self.n_bootstrap = None
-        self.alpha = None
-        self.statistic = None
-        self.ci = None
-    
-    def set_statistic(self, statistic):
-        self.statistic = statistic
-
-    def set_n_bootstrap(self, n_bootstrap):
-        self.n_bootstrap = n_bootstrap
-
-    def get_alpha(self):
-        return self.alpha
-
-    def set_alpha(self, alpha):
-        self.alpha = alpha
-
-    def get_statistic_from_sample(self, sample):
-        if self.statistic == 'mean':
-            return np.mean(sample)
-        elif self.statistic == 'median':
-            return np.median(sample)
-        elif self.statistic == 'variance':  
-            return np.var(sample)
-        else:
-            raise ValueError(f"Statistic {self.statistic} is not implemented")
-    
-    def get_ci_from_bootstrap_replicates(self, bootstrap_replicates, alpha):
-        if self.statistic == 'mean':
-            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-        elif self.statistic == 'median':
-            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-        elif self.statistic == 'variance':
-            return np.percentile(bootstrap_replicates, [100 * alpha / 2, 100 * (1 - alpha / 2)])
-        else:
-            raise ValueError(f"Statistic {self.statistic} is not implemented")
+# Selecionar o tipo de análise, agregado por modelo ou por estação
+analise = st.sidebar.radio('Selecione o tipo de análise', ['Agregado por modelo', 'Agregado por estação', 'Resultado Performance Modelo', 'Correlação de Features'])
 
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Dados de Estações
-file_estacoes = "estacoes_data_cluster_0.csv"
+# Monta as opcões de cluster para o usuário, utilizando o arquivo de clusters
+# que foi gerado no código de análise de dados e disponíveis neste diretório
 
-# Arquivo de Estações
-data_estacoes = DataLoaderEstacoes()
-data_estacoes.file = file_estacoes
-data_estacoes.load_csv()
+# carregar lista de arquivos a serem trabalhados
+arquivos = glob.glob('resultados_ML_*')
 
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# inicializar o estilo do seaborn
-sns.set_style("darkgrid")
+# Busca todos os arquivos que começam com "resultados_ML_" e terminam com ".csv", cujo cluster está imediatamente antes do .csv
+# e monta uma lista com os nomes dos clusters
 
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# CONFIGURAÇÕES DO PAINEL DE DADOS
+clusters = [cluster.split('.')[0].split('_')[-1] for cluster in arquivos]
+clusters = list(set(clusters))
+clusters.sort()
 
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# 2. Configurar a página
-st.set_page_config(
-    page_title="Avaliação de Modelos de ML para Estudos de Regionalização de Vazões",
-    page_icon=":bar_chart:",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-st.markdown("##")
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Barra Lateral
-
-# Opções de modelos de ML a serem selecionados na barra lateral
-# Dicionário com as opções de modelos de ML e campos de predição de cada um dos modelos
-ml_options = {
-    'BRR':['resultados_ML_brr_0.csv','y_pred_brr','brr'],
-    'KNNR':['resultados_ML_knnr_0.csv','y_pred_knnr','knnr'],
-    'Linear Regression':['resultados_ML_lr_0.csv','y_pred_LinearRegression','lr'],
-    'Random Forest Regressor':['resultados_ML_rfr_0.csv','y_pred_RandomForestRegressor','rfr'],
-    'SVR':['resultados_ML_svr_0.csv', 'y_pred_SVR','svr'],
-    'XGBoost Regressor':['resultados_ML_xgbr_0.csv','y_pred_XGBRegressor','xgbr'],
-    'XGBoost Randon Forest Regressor':['resultados_ML_xgbrf_0.csv','y_pred_XGBRFRegressor','xgbrf'],
-}
-# Monta a lista de modelos de ML para seleção na barra lateral
-selected_ml = st.sidebar.selectbox("Selecione o modelo de machine learning", list(ml_options.keys()))
-# Variável com o nome do arquivo de resultados - resultado da seleção do modelo de ML
-file_resultados = ml_options[selected_ml][0]
-# Variável com o nome do campo de predição - resultado da seleção do modelo de ML
-y_pred = ml_options[selected_ml][1]
-# Variável com mnemonico do modelo de ML - resultado da seleção do modelo de ML
-mnemonico = ml_options[selected_ml][2]
-
-# Carregar o arquivo de dados de resultados do ML selecionado
-data = DataLoaderResultadosML()
-data.file = file_resultados
-data.load_csv()
-
-# Monta Lista de Códigos de Estações
-station_codes = data_estacoes.get_station_codes()
-# Criar a seção de seleção de estação para a barra lateral
-selected_station = st.sidebar.selectbox("Selecione o código da estação", station_codes)
-
-# 7. Filtrar os dados pela estação selecionada
-filtered_data = data.get_filtered_data(selected_station)
-filtered_data_estacoes = data_estacoes.get_filtered_data(selected_station)
-# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# SEÇÃO DO PAINEL DE DADOS 
-
-# Titulo do painel
-with st.container():
-    st.title("Painel de Dados")
-    st.subheader("Avaliação de Modelos de ML para Estudos de Regionalização de Vazões")
-
-st.markdown("---")
-
-# # container para a tabela de estações
-# with st.container():
-#     st.write(f"Tabela com os dados da estação - Código da Estação : {selected_station}")
-#     st.table(filtered_data_estacoes)
-
-with st.expander(f"⏰ Tabela com os dados da estação - Código da Estação : {selected_station}"):
-    showData=st.multiselect('Filter: ',filtered_data_estacoes.columns,default=["codigo","cobacia","cocursodag","q95"])
-    st.dataframe(filtered_data_estacoes[showData],use_container_width=True, height=200)
-
-st.markdown("---")
-
-# container para o indicador de vazão, a q95 da estação
-with st.container():
-    st.write(f"Indicador de Vazão - Q95 da estação - Código da Estação : {selected_station}")
-    st.write(filtered_data_estacoes["q95"].values[0])
-
-st.markdown("---")
-
-# kpis com as estatísticas descritivas - 3 colunas
-metrics_column1, metrics_column2, metrics_column3 = st.columns(3)
-# medidas de centralidade
-with metrics_column1:
-    st.subheader("Média")
-    st.write(filtered_data[y_pred].mean())
-    st.subheader("Mediana")
-    st.write(filtered_data[y_pred].median())
-# medidas de dispersão
-with metrics_column2:
-    st.subheader("Variância")
-    st.write(filtered_data[y_pred].var())
-    st.subheader("Desvio Padrão")
-    st.write(filtered_data[y_pred].std())
-# medidas de intervalode confiança
-with metrics_column3:
-    st.subheader("lower bound 2,5%")
-    st.write(filtered_data[y_pred].quantile(0.025))
-    st.subheader("upper bound 97,5%")
-    st.write(filtered_data[y_pred].quantile(0.975))
-
-st.markdown("---")
-
-# seção com os testes bootstrap para intervalo de confiança dos quantilles 0,025 e 0,975
-st.subheader("Testes bootstrap para intervalo de confiança dos quantilles 0,025 e 0,975")
-st.write("Testes bootstrap para intervalo de confiança dos quantilles 0,025 e 0,975")
-# criar o objeto bootstrap
-bootstrap = BootstrapConfidenceInterval(filtered_data[y_pred])
-# setar o número de amostras bootstrap
-bootstrap.set_n_bootstrap(1000)
-# setar o nível de confiança
-bootstrap.set_alpha(0.05)
+# Cria um menu dropdown para o usuário selecionar o cluster desejado
+cluster = st.sidebar.selectbox('Selecione o cluster', clusters)
 
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Sobre a média
+# monta a lista de opções de modelos disponíveis para o cluster selecionado
+# Busca todos os arquivos que começam com "resultados_ML_" e terminam com ".csv", cujo cluster está imediatamente antes do .csv
+# e monta uma lista com os nomes dos modelos
 
-# setar a estatística
-bootstrap.set_statistic("mean")
-# calcular o intervalo de confiança
-ci = bootstrap.get_ci(filtered_data[y_pred], bootstrap.get_n_bootstrap(), bootstrap.get_alpha())
-# imprimir o intervalo de confiança em 3 colunas
-ci_column1, ci_column2, ci_column3 = st.columns(3)
-# intervalo de confiança da média na coluna 1
-with ci_column1:
-    st.subheader("CI da média")
-    # setar a estatística
-    bootstrap.set_statistic("mean")
-    # calcular o intervalo de confiança
-    ci = bootstrap.get_ci(filtered_data[y_pred], bootstrap.get_n_bootstrap(), bootstrap.get_alpha())
-    st.write("lower bound: ", ci[0])
-    st.write("upper bound: ", ci[1])
-# intervalo de confiança da mediana na coluna 2
-with ci_column2:
-    st.subheader("CI da mediana")
-    # setar a estatística
-    bootstrap.set_statistic("median")
-    # calcular o intervalo de confiança
-    ci = bootstrap.get_ci(filtered_data[y_pred], bootstrap.get_n_bootstrap(), bootstrap.get_alpha())
-    st.write("lower bound: ", ci[0])
-    st.write("upper bound: ", ci[1])
-# intervalo de confiança da variância na coluna 3
-with ci_column3:
-    st.subheader("CI da variância")
-    # setar a estatística
-    bootstrap.set_statistic("variance")
-    # calcular o intervalo de confiança
-    ci = bootstrap.get_ci(filtered_data[y_pred], bootstrap.get_n_bootstrap(), bootstrap.get_alpha())
-    st.write("lower bound: ", ci[0])
-    st.write("upper bound: ", ci[1])
-st.markdown("---")
-# 10. Criar a seção de seleção de gráficos
-#graph_types = ["Histograma", "Violinplot", "Boxplot", "Q-Q plot"]
-#selected_graph_types = st.sidebar.multiselect("Selecione o(s) tipo(s) de gráfico", graph_types, default=graph_types)
+ml = [ml.split('_')[2].split('_')[-1] for ml in arquivos if cluster in ml]
+ml = list(set(ml))
+ml.sort()   
 
-# gráficos em colunas
-graph_column1, graph_column2 = st.columns(2)
-# sobre o histograma
-with graph_column1:
-    st.subheader("Histograma")
-    st.write("Histograma das previsões do modelo XGBRegressor")
-    sns.set(rc={'figure.figsize':(6,6)})
-    sns.histplot(filtered_data[y_pred], bins=100)
-    #linha vertical para para a q95 da estação
-    plt.axvline(x=filtered_data_estacoes["q95"].values[0], color='r', linestyle='--')
-    # linha vertical azul para a média encontrada no modelo de ml
-    plt.axvline(x=filtered_data[y_pred].mean(), color='b', linestyle='--')
-    # linhas azuis para quartilles 0,025 e 0,975
-    plt.axvline(x=filtered_data[y_pred].quantile(0.025), color='g', linestyle='--')
-    plt.axvline(x=filtered_data[y_pred].quantile(0.975), color='g', linestyle='--')
-    st.pyplot()
+# Cria um menu dropdown para o usuário selecionar o modelo desejado
+modelo = st.sidebar.multiselect('Selecione o(s) modelo(s)', ml, default=ml)
 
-# sobre o violinplot
-with graph_column2:
-    st.subheader("Violinplot")
-    st.write(f"Violinplot das previsões do modelo {mnemonico}")
-    sns.set(rc={'figure.figsize':(6,6)})
-    sns.violinplot(y=filtered_data[y_pred])
-    # linha horizontal vermelha para para a q95 da estação
-    plt.axhline(y=filtered_data_estacoes["q95"].values[0], color='r', linestyle='--')
-    # linha horizontal azul para a média encontrada no modelo de ml
-    plt.axhline(y=filtered_data[y_pred].mean(), color='b', linestyle='--')
-    # linhas azuis para quartilles 0,025 e 0,975
-    plt.axhline(y=filtered_data[y_pred].quantile(0.025), color='g', linestyle='--')
-    plt.axhline(y=filtered_data[y_pred].quantile(0.975), color='g', linestyle='--')
-    st.pyplot()
-# graficos em colunas
-graph_column3, graph_column4 = st.columns(2)
-# sobre o boxplot
-with graph_column3:
-    st.subheader("Boxplot")
-    st.write(f"Boxplot das previsões do modelo {mnemonico}")
-    sns.set(rc={'figure.figsize':(6,6)})
-    sns.boxplot(y=filtered_data[y_pred])
-    st.pyplot()
-
-with graph_column4:
-    st.subheader("Q-Q plot")
-    st.write(f"Q-Q plot das previsões do modelo {mnemonico}")
-    import scipy.stats as stats
-    fig, ax = plt.subplots(figsize=(6,6))
-    stats.probplot(filtered_data[y_pred], plot=ax)
-    st.pyplot(fig)
-
-st.markdown("---")
-
+#st.write(modelo)
 
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# METODO PARA GERAR TODAS AS ESTATÍSTICAS DO PAINEL PARA AS ESTAÇÕES NO data.data 
+# Página Home - Introdução - Falar sobre a regionalização de vazões na Bacia do Rio São Francisco
+# este texto aperece quando a página home é selecionada
+st.title('Bem-vindo ao DashBoard de Vazões do Rio São Francisco')
+st.subheader('Este projeto foi desenvolvido por: ')
+st.write('''
+- [Luís Eduardo]''')
+
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Montar a página de análise de dados 
+# Para cada modelo selecionado pelo usuário serão mostrados indicadores dos valores preditos comparado à q95
+# e uma tabela com os valores preditos e os valores observados, utilizando objeto mito_table
 
-# DataLoader de arquivo de intervalos de confiança
-data_intervalos = DataLoader()
-data_intervalos.file = f"intervalos_confianca_{mnemonico}_0.csv"
-data_intervalos.load_csv()
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Montar a página de análise de dados
+# Para cada modelo selecionado pelo usuário serão mostrados indicadores dos valores preditos comparado à q95
 
-st.header(f"Intervalos de Confiança - {mnemonico}")
+# loop para montar a página de análise de dados agrupado por estação
+for ml in modelo:
+    # linha de separação
+    st.markdown('---')
+    # montar a página de análise de dados
+    st.subheader('Resultados do ML '+ml)
+    # montar a página de análise de dados
+    show_ml(ml, model_y_pred[ml], cluster, analise)
 
-with st.expander(f"⏰ Estatísticas das Estações para o Modelo de ML selecionado - {mnemonico}"):
-    columns_list = data_intervalos.data.columns.tolist()
-    showData=st.multiselect('Filter: ',data_intervalos.data.columns,default=columns_list)
-    st.dataframe(data_intervalos.data[showData],use_container_width=True, height=200)
-
-# criar botão para fazer download do arquivo de intervalos de confiança
-@st.cache_data
-def convert_df(df):
-    return df.to_csv(index=False).encode('utf-8')
-    
-csv = convert_df(data_intervalos.data)
-
-st.download_button(
-   "Press to Download CSV",
-   csv,
-   f"estatistica_ML_{mnemonico}.csv",
-   "text/csv",
-   key='download-csv'
-)
-
-st.markdown("---")
-
-st.write("KPIs para os intervalos de confiança das previsões do modelo de ML selecionado")
-
-metrics_column1, metrics_column2, metrics_column3 = st.columns(3)
-filtered_names = list(filter(lambda x: "dentro_intervalo" in x, columns_list))
-
-# Quantidades de estações dentro do intervalo de confiança
-with metrics_column1:
-    st.subheader("Dentro do Intervalo")
-    st.write(int(data_intervalos.data[filtered_names].sum()))
-# Quantidades de estações fora do intervalo de confiança
-with metrics_column2:
-    st.subheader("Fora do Intervalo")
-    st.write(int(len(data_intervalos.data) - data_intervalos.data[filtered_names].sum()))
-# Percentual de estações dentro do intervalo de confiança
-with metrics_column3:
-    st.subheader("Proporção")
-    st.write(float(data_intervalos.data[filtered_names].sum() / len(data_intervalos.data)))
-    #st.write(len(filtered_names.data()))
